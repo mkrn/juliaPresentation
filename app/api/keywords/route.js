@@ -126,7 +126,7 @@ export async function POST(req) {
   if (intentRes.status === 'fulfilled') {
     const items = intentRes.value?.result?.[0]?.items || [];
     for (const it of items) {
-      const main = it.keyword_intent?.main_intent || it.keyword_intent?.intent;
+      const main = it.keyword_intent?.label || it.keyword_intent?.main_intent || it.keyword_intent?.intent;
       if (main) intentMap[(it.keyword || '').toLowerCase()] = main;
     }
   }
