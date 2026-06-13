@@ -1,0 +1,19 @@
+# dependencies
+/node_modules
+
+# next.js
+/.next
+/out
+
+# env — never commit real keys
+.env*.local
+.env
+
+# original source deck (the served copy lives in /public/presentation.html)
+/will-the-math-math.html
+
+# misc
+.DS_Store
+*.pem
+npm-debug.log*
+.vercel
