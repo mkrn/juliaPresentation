@@ -1,7 +1,7 @@
 // POST /api/idea
-// Body: { description: string, country?: string (display name, default "United States") }
-// Uses Gemini (with thinking) to return a broad idea, a refined niche, TAM + reachable
-// market estimates, and 1-5 demand keywords. Keys stay server-side.
+// Body: { keyword: string, country?: string (display name, default "United States") }
+// Uses Gemini to describe the target audience for a single search keyword as two
+// terse one-sentence descriptions (broad + niche). Keys stay server-side.
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -11,46 +11,20 @@ const MODEL = process.env.GEMINI_MODEL || 'gemini-2.5-flash';
 const RESPONSE_SCHEMA = {
   type: 'object',
   properties: {
-    broadIdea: { type: 'string' },
-    nicheIdea: { type: 'string' },
-    tam: {
-      type: 'object',
-      properties: {
-        label: { type: 'string' },
-        valueUsd: { type: 'number' },
-        reasoning: { type: 'string' },
-      },
-      required: ['label', 'valueUsd', 'reasoning'],
-    },
-    reachableMarket: {
-      type: 'object',
-      properties: {
-        label: { type: 'string' },
-        valueUsd: { type: 'number' },
-        reasoning: { type: 'string' },
-      },
-      required: ['label', 'valueUsd', 'reasoning'],
-    },
-    keywords: { type: 'array', items: { type: 'string' } },
+    broadAudience: { type: 'string' },
+    nicheAudience: { type: 'string' },
   },
-  required: ['broadIdea', 'nicheIdea', 'tam', 'reachableMarket', 'keywords'],
+  required: ['broadAudience', 'nicheAudience'],
 };
 
-function buildPrompt(description, country) {
-  return `You are a sharp, numerate startup market analyst. A founder wants to build the following:
+function buildPrompt(keyword, country) {
+  return `A founder is considering a product around the search keyword "${keyword}" in this market: ${country}.
 
-"""${description}"""
+Return ONE JSON object with exactly two fields, each a single concise sentence:
+- broadAudience: the broad target audience that searches this keyword.
+- nicheAudience: the sharpest niche segment within that audience worth winning first.
 
-Target market / country: ${country}.
-
-Think it through, then return ONE JSON object with:
-- broadIdea: 1-2 sentences naming the broad product category this belongs to.
-- nicheIdea: 1-2 sentences refining it into a sharp, defensible niche worth going after first.
-- tam: the Total Addressable Market for the BROAD category. Give { label (human string like "$4.2B / yr"), valueUsd (the annual figure as a plain number, e.g. 4200000000), reasoning (one sentence on how you sized it) }.
-- reachableMarket: the realistic Serviceable Obtainable Market a small startup could reach in ${country}. Give { label, valueUsd (annual), reasoning }.
-- keywords: 1 to 5 real, high-intent search queries a potential BUYER (not a researcher) would type into Google when ready to find/buy this. Lowercase, no quotes, the kind of phrase with real search volume. Prefer commercial/transactional intent.
-
-Be realistic and specific to ${country}. Do not be promotional.`;
+Be specific to ${country}. One sentence each — name the people directly. Do NOT begin with "The broad/niche audience…", do NOT restate the keyword, no lists, no labels, no filler.`;
 }
 
 export async function POST(req) {
@@ -66,20 +40,19 @@ export async function POST(req) {
     return Response.json({ error: 'Invalid JSON body.' }, { status: 400 });
   }
 
-  const description = (body.description || '').toString().trim();
+  const keyword = (body.keyword || '').toString().trim();
   const country = (body.country || 'United States').toString().trim();
-  if (!description) {
-    return Response.json({ error: 'Please describe what you want to build.' }, { status: 400 });
+  if (!keyword) {
+    return Response.json({ error: 'Please provide a keyword.' }, { status: 400 });
   }
 
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
   const payload = {
-    contents: [{ role: 'user', parts: [{ text: buildPrompt(description, country) }] }],
+    contents: [{ role: 'user', parts: [{ text: buildPrompt(keyword, country) }] }],
     generationConfig: {
-      temperature: 0.6,
+      temperature: 0.4,
       responseMimeType: 'application/json',
       responseSchema: RESPONSE_SCHEMA,
-      thinkingConfig: { thinkingBudget: 4096 },
     },
   };
 
@@ -116,16 +89,9 @@ export async function POST(req) {
     return Response.json({ error: 'Gemini returned unparseable content.', detail: text.slice(0, 400) }, { status: 502 });
   }
 
-  // normalise keywords to 1-5 clean strings
-  let keywords = Array.isArray(parsed.keywords) ? parsed.keywords : [];
-  keywords = keywords.map((k) => String(k).toLowerCase().trim()).filter(Boolean).slice(0, 5);
-
   return Response.json({
-    broadIdea: parsed.broadIdea || '',
-    nicheIdea: parsed.nicheIdea || '',
-    tam: parsed.tam || null,
-    reachableMarket: parsed.reachableMarket || null,
-    keywords,
+    broadAudience: (parsed.broadAudience || '').toString().trim(),
+    nicheAudience: (parsed.nicheAudience || '').toString().trim(),
     model: MODEL,
   });
 }

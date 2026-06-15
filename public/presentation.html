@@ -610,23 +610,17 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
     <!-- LEFT: inputs -->
     <div class="pg-inputs">
       <div class="pg-step">
-        <span class="lab"><span class="n">01 ·</span> What do you want to build?</span>
-        <textarea id="pgIdea" placeholder="e.g. an app that turns my dog's photos into oil paintings">an app that turns my dog's photos into oil paintings</textarea>
+        <span class="lab"><span class="n">01 ·</span> One keyword buyers search</span>
         <div class="pg-row">
+          <input type="text" class="pg-num" id="pgKeyword" placeholder="e.g. ai headshot generator" value="ai headshot generator" style="width:17em">
           <select id="pgCountry" aria-label="Target country"></select>
-          <button class="btn" id="pgAnalyze">Analyze idea ✦</button>
+          <button class="btn" id="pgAnalyze">Analyze ✦</button>
         </div>
-      </div>
-
-      <div class="pg-step">
-        <span class="lab"><span class="n">02 ·</span> Demand — keywords buyers search</span>
-        <div class="chips" id="pgChips"></div>
-        <button class="btn ghost" id="pgFetch">Pull search demand →</button>
         <div class="pg-status" id="pgDemandStatus"></div>
       </div>
 
       <div class="pg-step">
-        <span class="lab"><span class="n">03 ·</span> Channel &amp; funnel</span>
+        <span class="lab"><span class="n">02 ·</span> Channel &amp; funnel</span>
         <div class="pg-row tight">
           <div class="seg" id="pgChannel">
             <button data-v="cpc" class="on">Google CPC</button>
@@ -643,7 +637,7 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
       </div>
 
       <div class="pg-step">
-        <span class="lab"><span class="n">04 ·</span> Pricing</span>
+        <span class="lab"><span class="n">03 ·</span> Pricing</span>
         <div class="pg-row tight">
           <div class="seg" id="pgModel">
             <button data-v="onetime" class="on">One-time</button>
@@ -655,14 +649,6 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
             <input type="number" class="pg-num" id="pgPrice" value="49" min="1" step="1"></div>
           <div class="pg-field" id="pgMonthsWrap" style="display:none"><span class="cap">LTV length (months)</span>
             <input type="number" class="pg-num" id="pgMonths" value="12" min="1" step="1"></div>
-        </div>
-      </div>
-
-      <div class="pg-step">
-        <span class="lab"><span class="n">05 ·</span> Targets</span>
-        <div class="pg-row">
-          <div class="pg-field"><span class="cap">Target earnings / month ($)</span>
-            <input type="number" class="pg-num" id="pgTarget" value="1000" min="1" step="50"></div>
           <div class="pg-field"><span class="cap">Expenses per sale ($)</span>
             <input type="number" class="pg-num" id="pgExp" value="2" min="0" step="1"></div>
         </div>
@@ -672,13 +658,11 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
     <!-- RIGHT: results -->
     <div class="pg-results">
       <div class="pg-card" id="pgMarket">
-        <div class="mkt-row"><div class="k">Market read</div>
-          <div class="v" id="pgMarketHint" style="color:var(--dim)">Describe an idea and hit <b style="color:var(--amber)">Analyze</b> — Gemini sizes the market and suggests keywords.</div></div>
+        <div class="mkt-row"><div class="k">Target audience</div>
+          <div class="v" id="pgMarketHint" style="color:var(--dim)">Enter a keyword and hit <b style="color:var(--amber)">Analyze</b> — Gemini describes who's searching.</div></div>
         <div id="pgMarketBody" style="display:none">
-          <div class="mkt-row"><div class="k">Broad idea</div><div class="v" id="pgBroad"></div></div>
-          <div class="mkt-row"><div class="k">Niche to win first</div><div class="v" id="pgNiche"></div></div>
-          <div class="mkt-row"><div class="k">TAM</div><div class="mkt-big" id="pgTam"></div><div class="why" id="pgTamWhy"></div></div>
-          <div class="mkt-row"><div class="k">Reachable market</div><div class="mkt-big amber" id="pgReach"></div><div class="why" id="pgReachWhy"></div></div>
+          <div class="mkt-row"><div class="k">Broad audience</div><div class="v" id="pgBroad"></div></div>
+          <div class="mkt-row"><div class="k">Niche audience</div><div class="v" id="pgNiche"></div></div>
         </div>
       </div>
 
@@ -691,8 +675,6 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
         <div class="stat-grid">
           <div class="stat"><div class="k">CAC</div><div class="v" id="pgCac">—</div></div>
           <div class="stat"><div class="k">LTV</div><div class="v" id="pgLtv">—</div></div>
-          <div class="stat"><div class="k">Ad spend / month</div><div class="v amber" id="pgAd">—</div></div>
-          <div class="stat"><div class="k">Months to target</div><div class="v" id="pgMonthsOut">—</div></div>
         </div>
         <div class="verdict" id="pgVerdict">Adjust the inputs — the verdict updates live.</div>
       </div>
@@ -862,7 +844,7 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
   const DEFAULT_CPC=2.00; // search CPC before demand is pulled
 
   // ---- state
-  let channel='cpc', model='onetime', keywords=[], demand=null;
+  let channel='cpc', model='onetime', demand=null;
 
   // ---- country picker
   const sel=$('pgCountry');
@@ -895,85 +877,59 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
 
   // ---- conversion slider
   $('pgConv').addEventListener('input',()=>{$('pgConvO').textContent=(+$('pgConv').value).toFixed(1)+'%';compute();});
-  ['pgPrice','pgMonths','pgTarget','pgExp'].forEach(id=>$(id).addEventListener('input',compute));
+  ['pgPrice','pgMonths','pgExp'].forEach(id=>$(id).addEventListener('input',compute));
   sel.addEventListener('change',compute);
 
-  // ---- keyword chips
-  function renderChips(){
-    const wrap=$('pgChips');wrap.innerHTML='';
-    keywords.forEach((k,idx)=>{
-      const c=document.createElement('span');c.className='chip';
-      c.innerHTML='<span></span><b title="remove">×</b>';
-      c.querySelector('span').textContent=k;
-      c.querySelector('b').onclick=()=>{keywords.splice(idx,1);renderChips();};
-      wrap.appendChild(c);
-    });
-    const inp=document.createElement('input');inp.className='chip-add';inp.placeholder='+ add keyword';
-    inp.onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();const v=inp.value.toLowerCase().trim();
-      if(v&&!keywords.includes(v)&&keywords.length<5){keywords.push(v);renderChips();}}};
-    wrap.appendChild(inp);
-  }
-  keywords=['dog portrait app','pet portrait from photo'];renderChips();
+  // ---- single keyword: one "Analyze" runs Gemini (audience) + DataForSEO (demand)
+  const kwInput=$('pgKeyword');
 
-  // ---- analyze (Gemini)
-  $('pgAnalyze').addEventListener('click',async()=>{
-    const desc=$('pgIdea').value.trim();
-    if(!desc){$('pgMarketHint').textContent='Type an idea first.';return;}
-    const btn=$('pgAnalyze');btn.disabled=true;const old=btn.textContent;btn.textContent='Thinking…';
-    $('pgMarketHint').innerHTML='<span class="spin"></span>Gemini is sizing the market…';
+  async function analyzeAudience(keyword){
+    $('pgMarketHint').innerHTML='<span class="spin"></span>Gemini is describing the audience…';
     $('pgMarketHint').style.display='';$('pgMarketBody').style.display='none';
     try{
       const r=await fetch('/api/idea',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({description:desc,country:CNAME[sel.value]})});
+        body:JSON.stringify({keyword:keyword,country:CNAME[sel.value]})});
       const d=await r.json();
       if(!r.ok)throw new Error(d.detail||d.error||'request failed');
-      $('pgBroad').textContent=d.broadIdea||'—';
-      $('pgNiche').textContent=d.nicheIdea||'—';
-      if(d.tam){$('pgTam').textContent=d.tam.label||money(d.tam.valueUsd);$('pgTamWhy').textContent=d.tam.reasoning||'';}
-      if(d.reachableMarket){$('pgReach').textContent=d.reachableMarket.label||money(d.reachableMarket.valueUsd);$('pgReachWhy').textContent=d.reachableMarket.reasoning||'';}
-      if(Array.isArray(d.keywords)&&d.keywords.length){keywords=d.keywords.slice(0,5);renderChips();}
+      $('pgBroad').textContent=d.broadAudience||'—';
+      $('pgNiche').textContent=d.nicheAudience||'—';
       $('pgMarketHint').style.display='none';$('pgMarketBody').style.display='';
     }catch(e){
       $('pgMarketHint').innerHTML='<span style="color:var(--red)">Gemini error: '+(e.message||e)+'</span>';
-    }finally{btn.disabled=false;btn.textContent=old;}
-  });
+    }
+  }
 
-  // ---- pull demand (DataForSEO)
-  $('pgFetch').addEventListener('click',async()=>{
-    if(!keywords.length){$('pgDemandStatus').textContent='Add at least one keyword.';return;}
-    const btn=$('pgFetch');btn.disabled=true;
+  async function pullDemand(keyword){
     const st=$('pgDemandStatus');st.className='pg-status';st.innerHTML='<span class="spin"></span>Pulling search stats…';
     try{
       const r=await fetch('/api/keywords',{method:'POST',headers:{'Content-Type':'application/json'},
-        body:JSON.stringify({keywords,country:sel.value})});
+        body:JSON.stringify({keywords:[keyword],country:sel.value})});
       const d=await r.json();
       if(!r.ok)throw new Error(d.detail||d.error||'request failed');
-      const ks=d.keywords||[];
-      const cpcs=ks.map(k=>k.cpc).filter(x=>x>0);
-      const vols=ks.map(k=>k.search_volume||0);
-      const diffs=ks.map(k=>k.difficulty).filter(x=>typeof x==='number');
-      const intents={};ks.forEach(k=>{intents[k.intent]=(intents[k.intent]||0)+1;});
-      const topIntent=Object.keys(intents).sort((a,b)=>intents[b]-intents[a])[0]||'—';
-      demand={
-        avgCpc:cpcs.length?cpcs.reduce((a,b)=>a+b,0)/cpcs.length:0,
-        avgVolume:vols.length?Math.round(vols.reduce((a,b)=>a+b,0)/vols.length):0,
-        avgDifficulty:diffs.length?Math.round(diffs.reduce((a,b)=>a+b,0)/diffs.length):null,
-        intent:topIntent, source:d.source
-      };
-      // render table
+      const k0=(d.keywords||[])[0]||{};
+      demand={ avgCpc:k0.cpc||0, volume:k0.search_volume||0,
+        difficulty:(typeof k0.difficulty==='number'?k0.difficulty:null), intent:k0.intent||'—', source:d.source };
       let html='<tr><th>Keyword</th><th>Vol/mo</th><th>KD</th><th>CPC</th><th>Intent</th></tr>';
-      ks.forEach(k=>{html+='<tr><td>'+k.keyword+'</td><td class="num">'+(k.search_volume||0).toLocaleString()
-        +'</td><td class="num">'+(k.difficulty==null?'—':k.difficulty)+'</td><td class="num">'+cpcFmt(k.cpc||0)
-        +'</td><td>'+(k.intent||'—')+'</td></tr>';});
+      html+='<tr><td>'+(k0.keyword||keyword)+'</td><td class="num">'+(k0.search_volume||0).toLocaleString()
+        +'</td><td class="num">'+(k0.difficulty==null?'—':k0.difficulty)+'</td><td class="num">'+cpcFmt(k0.cpc||0)
+        +'</td><td>'+(k0.intent||'—')+'</td></tr>';
       $('pgDemandTable').innerHTML=html;
       const badge=$('pgSrcBadge');
-      if(d.source==='dataforseo'){badge.textContent='LIVE · DataForSEO';badge.className='badge live';st.className='pg-status';st.textContent='Avg vol '+demand.avgVolume.toLocaleString()+'/mo · avg CPC '+cpcFmt(demand.avgCpc)+' · intent '+demand.intent;}
+      if(d.source==='dataforseo'){badge.textContent='LIVE · DataForSEO';badge.className='badge live';st.className='pg-status';st.textContent='Vol '+demand.volume.toLocaleString()+'/mo · CPC '+cpcFmt(demand.avgCpc)+' · intent '+demand.intent;}
       else{badge.textContent='ESTIMATED';badge.className='badge est';st.className='pg-status';st.textContent='Estimated (DataForSEO unavailable): '+(d.note||'');}
       $('pgDemandCard').style.display='';
-      compute();
-    }catch(e){st.className='pg-status err';st.textContent='Demand error: '+(e.message||e);}
-    finally{btn.disabled=false;}
+    }catch(e){$('pgDemandStatus').className='pg-status err';$('pgDemandStatus').textContent='Demand error: '+(e.message||e);}
+  }
+
+  $('pgAnalyze').addEventListener('click',async()=>{
+    const keyword=kwInput.value.trim().toLowerCase();
+    if(!keyword){$('pgDemandStatus').className='pg-status err';$('pgDemandStatus').textContent='Enter a keyword first.';return;}
+    const btn=$('pgAnalyze');btn.disabled=true;const old=btn.textContent;btn.textContent='Analyzing…';
+    await Promise.allSettled([analyzeAudience(keyword), pullDemand(keyword)]);
+    btn.disabled=false;btn.textContent=old;
+    compute();
   });
+  kwInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();$('pgAnalyze').click();}});
 
   // ---- the math
   function compute(){
@@ -981,30 +937,17 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
     const conv=num('pgConv',1)/100;
     const effConv=conv*CONV_MULT[channel];
     const cac=cpc/effConv;
-    const price=num('pgPrice',0), exp=num('pgExp',0), target=num('pgTarget',1000);
+    const price=num('pgPrice',0), exp=num('pgExp',0);
     let netLife, months=num('pgMonths',12);
     if(model==='sub'){netLife=(price-exp)*months;}
     else{netLife=price-exp;}
     const profit=netLife-cac;            // lifetime profit per customer
     const ratio=cac>0?netLife/cac:Infinity;
-    const adSpend=profit>0?target*cac/profit:Infinity;
-
-    // months to reach target run-rate
-    let mTarget;
-    if(profit<=0)mTarget=Infinity;
-    else if(model!=='sub')mTarget=1;     // one-time: no MRR ramp
-    else{
-      const c=1/months, newPer=adSpend/cac;let active=0;mTarget=Infinity;
-      for(let n=1;n<=240;n++){active=active*(1-c)+newPer;const p=active*(price-exp)-adSpend;
-        if(p>=target*0.95){mTarget=n;break;}}
-    }
 
     $('pgCac').textContent=money(cac);
     $('pgCac').className='v '+(ratio>=3?'green':ratio>=1?'amber':'red');
     $('pgLtv').textContent=money(netLife);
-    $('pgAd').textContent=money(adSpend);
-    $('pgMonthsOut').textContent=!isFinite(mTarget)?'∞':mTarget;
-    $('pgMonthsOut').className='v '+(!isFinite(mTarget)?'red':mTarget<=12?'green':mTarget<=36?'amber':'red');
+    $('pgLtv').className='v '+(profit>0?'green':'red');
 
     const v=$('pgVerdict');
     const chName={cpc:'Google search',instagram:'Instagram',tiktok:'TikTok'}[channel];
@@ -1015,7 +958,7 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
       const r1=(Math.round(ratio*10)/10);
       const cls=ratio>=3?'good':'warn';
       v.className='verdict '+cls;
-      v.innerHTML='✓ LTV:CAC = <b>'+r1+'×</b>'+(ratio<3?' (thin — under the 3:1 rule)':'')+'. Spend <b>'+money(adSpend)+'/mo</b> on '+chName+' ads to net <b>'+money(target)+'/mo</b>'+(model==='sub'?', reached in ~<b>'+(isFinite(mTarget)?mTarget:'∞')+' months</b> as MRR compounds against churn.':' from month one (no recurring ramp).');
+      v.innerHTML='✓ LTV:CAC = <b>'+r1+'×</b>'+(ratio<3?' (thin — under the 3:1 rule of thumb)':'')+'. Each '+chName+' customer nets <b>'+money(profit)+'</b> after acquisition.';
     }
   }
 
