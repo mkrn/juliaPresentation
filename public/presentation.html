@@ -925,7 +925,7 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
       const mid=(lo+hi)/2;
       demand={ volume:k0.volume||0, competition:k0.competition||'—', low:lo, high:hi, source:d.source };
       // table
-      let html='<tr><th>Keyword</th><th>Vol/mo</th><th>Competition</th><th>Top-of-page bid</th></tr>';
+      let html='<tr><th>Keyword</th><th>Vol/mo</th><th>Ads competition</th><th>Top-of-page bid</th></tr>';
       html+='<tr><td>'+(k0.keyword||keyword)+'</td><td class="num">'+(demand.volume).toLocaleString()
         +'</td><td>'+demand.competition+'</td><td class="num">'+cpcFmt(lo)+'–'+cpcFmt(hi)+'</td></tr>';
       $('pgDemandTable').innerHTML=html;
