@@ -642,7 +642,7 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
         <div class="pg-row">
           <div class="pg-field" style="flex:1;min-width:14em">
             <span class="cap">Landing-page conversion · <output id="pgConvO" class="mono">1.0%</output></span>
-            <input type="range" id="pgConv" min="1" max="15" step="0.5" value="1">
+            <input type="range" id="pgConv" min="0.1" max="15" step="0.1" value="1">
           </div>
         </div>
       </div>
@@ -936,7 +936,7 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
       $('pgCpcRange').textContent='(Google Ads range '+cpcFmt(lo)+'–'+cpcFmt(hi)+')';
       $('pgCpcWrap').style.display='';
       const badge=$('pgSrcBadge');
-      if(d.source==='google-ads'){badge.textContent='LIVE · Google Ads';badge.className='badge live';st.className='pg-status';st.textContent='Vol '+demand.volume.toLocaleString()+'/mo · competition '+demand.competition+' · bid '+cpcFmt(lo)+'–'+cpcFmt(hi);}
+      if(d.source==='google-ads'){badge.textContent='LIVE · Google Ads';badge.className='badge live';st.className='pg-status';st.textContent='';}
       else{badge.textContent='ESTIMATED';badge.className='badge est';st.className='pg-status';st.textContent='Estimated (Google Ads unavailable): '+(d.note||'');}
       $('pgDemandCard').style.display='';
       compute();
