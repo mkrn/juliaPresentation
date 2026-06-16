@@ -6,19 +6,19 @@ real unit-economics math on **your** idea — keeping all API keys server-side.
 
 ## What the interactive slide does
 
-1. **Describe an idea** → Gemini (with thinking) returns a broad idea, a sharp niche,
-   a **TAM** + **reachable market** estimate (with reasoning), and 1–5 demand keywords.
-2. **Pick a country** (default 🇺🇸 USA).
-3. **Pull search demand** → DataForSEO returns per-keyword **search volume, difficulty,
-   CPC, and intent** for that country.
+1. **Enter one keyword** buyers search + a country (default 🇺🇸 USA), hit **Analyze**.
+2. **Gemini** returns a one-sentence **broad** and **niche** target-audience description.
+3. **Google Ads** (Keyword Planner) returns **search volume**, **competition**, and the
+   **top-of-page CPC bid range** (low–high). A slider — defaulting to the middle of that
+   range — sets the CPC used in the math.
 4. **Tune the funnel**: marketing channel (Google CPC / Instagram / TikTok), landing-page
    conversion (1%–15%), pricing (one-time or subscription with LTV length & churn),
-   target earnings/month, and expenses per sale.
-5. **Read the verdict**: live **CAC**, **LTV**, **ad spend / month**, and **months to
-   target** — with the LTV:CAC ratio color-coded against the 3:1 rule of thumb.
+   and expenses per sale.
+5. **Read the verdict**: live **CAC** and **LTV**, with the LTV:CAC ratio color-coded
+   against the 3:1 rule of thumb.
 
-Search CPC is live from DataForSEO; social CPC is estimated by country cost-tier, and
-social traffic gets a lower conversion multiplier (lower intent).
+Search CPC is your chosen bid within the Google Ads low–high range; social CPC is
+estimated by country cost-tier, and social traffic gets a lower conversion multiplier.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ social traffic gets a lower conversion multiplier (lower intent).
 |------|------|
 | `public/presentation.html` | The full deck (served at `/` via a rewrite). The interactive slide is `#playground`. |
 | `app/api/idea/route.js` | Proxies Google **Gemini** (`generativeLanguage` v1beta), structured JSON + thinking. |
-| `app/api/keywords/route.js` | Proxies **DataForSEO** (search volume/CPC + keyword difficulty + intent). Falls back to deterministic estimates if DataForSEO is unavailable. |
+| `app/api/keywords/route.js` | Proxies the **Google Ads API** (Keyword Planner historical metrics: volume, competition, low/high top-of-page bid). Falls back to deterministic estimates if Google Ads is unavailable. |
 | `next.config.js` | Rewrites `/` → `/presentation.html`. |
 
 The financial math runs client-side in the slide's `<script>`; only the two external
@@ -46,8 +46,7 @@ npm run dev                  # http://localhost:3000
 |-----|---------|
 | `GEMINI_API_KEY` | `/api/idea` |
 | `GEMINI_MODEL` | `/api/idea` (default `gemini-2.5-flash`) |
-| `DATAFORSEO_LOGIN` | `/api/keywords` |
-| `DATAFORSEO_PASSWORD` | `/api/keywords` |
+| `GOOGLE_ADS_DEVELOPER_TOKEN` · `GOOGLE_ADS_CLIENT_ID` · `GOOGLE_ADS_CLIENT_SECRET` · `GOOGLE_ADS_REFRESH_TOKEN` · `GOOGLE_ADS_MANAGER_ID` · `GOOGLE_ADS_CUSTOMER_ID` | `/api/keywords` |
 
 ## Deploy
 
