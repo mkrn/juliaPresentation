@@ -11,6 +11,7 @@ const nextConfig = {
     return {
       beforeFiles: [
         { source: '/', destination: '/presentation.html' },
+        { source: '/demo', destination: '/presentation.html' },
       ],
     };
   },

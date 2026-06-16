@@ -619,6 +619,17 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
         <div class="pg-status" id="pgDemandStatus"></div>
       </div>
 
+      <div class="pg-card" id="pgDemandCard" style="display:none;margin-bottom:1.1em">
+        <div class="mkt-row"><div class="k">Search demand <span class="badge" id="pgSrcBadge"></span></div></div>
+        <div class="table-wrap"><table class="dtable" id="pgDemandTable"></table></div>
+        <div class="pg-row" id="pgCpcWrap" style="display:none;margin-top:.7em">
+          <div class="pg-field" style="flex:1">
+            <span class="cap">Your top-of-page CPC bid · <output id="pgCpcO" class="mono">$0.00</output> <span id="pgCpcRange" class="dim" style="font-size:.85em"></span></span>
+            <input type="range" id="pgCpcSlider" min="0" max="10" step="0.01" value="2">
+          </div>
+        </div>
+      </div>
+
       <div class="pg-step">
         <span class="lab"><span class="n">02 ·</span> Channel &amp; funnel</span>
         <div class="pg-row tight">
@@ -663,17 +674,6 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
         <div id="pgMarketBody" style="display:none">
           <div class="mkt-row"><div class="k">Broad audience</div><div class="v" id="pgBroad"></div></div>
           <div class="mkt-row"><div class="k">Niche audience</div><div class="v" id="pgNiche"></div></div>
-        </div>
-      </div>
-
-      <div class="pg-card" id="pgDemandCard" style="display:none">
-        <div class="mkt-row"><div class="k">Search demand <span class="badge" id="pgSrcBadge"></span></div></div>
-        <div class="table-wrap"><table class="dtable" id="pgDemandTable"></table></div>
-        <div class="pg-row" id="pgCpcWrap" style="display:none;margin-top:.7em">
-          <div class="pg-field" style="flex:1">
-            <span class="cap">Your top-of-page CPC bid · <output id="pgCpcO" class="mono">$0.00</output> <span id="pgCpcRange" class="dim" style="font-size:.85em"></span></span>
-            <input type="range" id="pgCpcSlider" min="0" max="10" step="0.01" value="2">
-          </div>
         </div>
       </div>
 
@@ -823,7 +823,10 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
   }
   ids.forEach(id=>$(id).addEventListener('input',updCalc));updCalc();
 
-  show(0,1);
+  // deep-link: /demo (or #demo / #playground) opens the interactive slide directly
+  const demoIdx=slides.findIndex(s=>s.id==='playground');
+  const wantDemo=/\/demo\/?$/.test(location.pathname)||/^#(demo|playground)$/.test(location.hash);
+  show((wantDemo&&demoIdx>=0)?demoIdx:0,1);
 })();
 </script>
 
