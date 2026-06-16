@@ -1,13 +1,15 @@
 // POST /api/keywords
 // Body: { keywords: string[], country?: string (ISO2, default "US") }
-// Pulls live search volume, CPC, difficulty and intent from DataForSEO.
-// If DataForSEO is unreachable / unauthorized, returns deterministic ESTIMATED
-// metrics (source:"estimated") so the live demo still produces numbers.
+// Pulls search volume + top-of-page CPC bid range (low/high) from the Google Ads API
+// (Keyword Planner historical metrics). If Google Ads is unavailable, returns
+// deterministic ESTIMATED metrics (source:"estimated") so the live demo still works.
+
+import { GoogleAdsApi, enums } from 'google-ads-api';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// ISO2 -> DataForSEO location_code (subset; falls back to US).
+// ISO2 -> Google Ads geo target constant id (== Google criterion id).
 const LOCATION = {
   US: 2840, CA: 2124, GB: 2826, AU: 2036, IE: 2372, DE: 2276, FR: 2250,
   NL: 2528, CH: 2756, SE: 2752, NO: 2578, DK: 2208, JP: 2392, SG: 2702,
@@ -15,7 +17,7 @@ const LOCATION = {
   TR: 2792, GR: 2300, KR: 2410, CZ: 2203, IN: 2356, ID: 2360, PH: 2608,
   VN: 2704, NG: 2566, PK: 2586, EG: 2818, BD: 2050, ZA: 2710,
 };
-// Cost tier per country — drives the estimated-CPC scale on the client too.
+// Cost tier per country — drives the estimated social CPC on the client too.
 const TIER = {
   US: 1, CA: 1, GB: 1, AU: 1, IE: 1, DE: 1, FR: 1, NL: 1, CH: 1, SE: 1,
   NO: 1, DK: 1, JP: 1, SG: 1, AE: 1,
@@ -23,26 +25,8 @@ const TIER = {
   IN: 3, ID: 3, PH: 3, VN: 3, NG: 3, PK: 3, EG: 3, BD: 3,
 };
 
-function authHeader() {
-  const login = process.env.DATAFORSEO_LOGIN || '';
-  const password = process.env.DATAFORSEO_PASSWORD || '';
-  return 'Basic ' + Buffer.from(`${login}:${password}`).toString('base64');
-}
-
-async function dfs(path, taskBody) {
-  const res = await fetch(`https://api.dataforseo.com/v3/${path}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', Authorization: authHeader() },
-    body: JSON.stringify([taskBody]),
-  });
-  const json = await res.json();
-  if (json.status_code && json.status_code !== 20000) {
-    const err = new Error(json.status_message || `DataForSEO ${json.status_code}`);
-    err.statusCode = json.status_code;
-    throw err;
-  }
-  return json?.tasks?.[0] || null;
-}
+const COMPETITION_LABEL = { 0: 'UNSPECIFIED', 1: 'UNKNOWN', 2: 'LOW', 3: 'MEDIUM', 4: 'HIGH' };
+const micros = (m) => (m ? Number(m) / 1_000_000 : null);
 
 // ---- deterministic estimate fallback ---------------------------------------
 function hash(str) {
@@ -53,21 +37,62 @@ function hash(str) {
   }
   return (h >>> 0) / 4294967295; // 0..1
 }
-function guessIntent(kw) {
-  const k = kw.toLowerCase();
-  if (/\b(buy|price|pricing|cost|cheap|deal|discount|order|subscribe|near me|for sale)\b/.test(k)) return 'transactional';
-  if (/\b(best|top|review|reviews|vs|compare|alternative|software|app|tool|service|agency|company)\b/.test(k)) return 'commercial';
-  if (/\b(how|what|why|guide|tutorial|ideas|examples|meaning)\b/.test(k)) return 'informational';
-  return 'commercial';
-}
 function estimate(kw, tier) {
   const r = hash(kw);
-  const r2 = hash('v' + kw);
   const volume = Math.round((200 + r * 39800) / 10) * 10; // 200..40000
-  const tierCpc = tier === 1 ? 1 : tier === 2 ? 0.45 : 0.18;
-  const cpc = +(tierCpc * (0.6 + r2 * 5.4)).toFixed(2); // scaled by tier
-  const difficulty = Math.round(8 + hash('d' + kw) * 67); // 8..75
-  return { keyword: kw, search_volume: volume, cpc, competition_index: difficulty, difficulty, intent: guessIntent(kw), estimated: true };
+  const tierBase = tier === 1 ? 1 : tier === 2 ? 0.45 : 0.18;
+  const low = +(tierBase * (0.6 + hash('l' + kw) * 1.4)).toFixed(2);
+  const high = +(low * (2.2 + hash('h' + kw) * 1.8)).toFixed(2);
+  const competitionIndex = Math.round(8 + hash('c' + kw) * 67);
+  const competition = competitionIndex > 66 ? 'HIGH' : competitionIndex > 33 ? 'MEDIUM' : 'LOW';
+  return { keyword: kw, volume, competition, competitionIndex, low, high, estimated: true };
+}
+
+function hasCreds() {
+  return Boolean(
+    process.env.GOOGLE_ADS_DEVELOPER_TOKEN &&
+      process.env.GOOGLE_ADS_CLIENT_ID &&
+      process.env.GOOGLE_ADS_CLIENT_SECRET &&
+      process.env.GOOGLE_ADS_REFRESH_TOKEN &&
+      process.env.GOOGLE_ADS_CUSTOMER_ID,
+  );
+}
+
+async function googleAdsMetrics(keywords, locationCode) {
+  const client = new GoogleAdsApi({
+    client_id: process.env.GOOGLE_ADS_CLIENT_ID,
+    client_secret: process.env.GOOGLE_ADS_CLIENT_SECRET,
+    developer_token: process.env.GOOGLE_ADS_DEVELOPER_TOKEN,
+  });
+  const customer = client.Customer({
+    customer_id: process.env.GOOGLE_ADS_CUSTOMER_ID,
+    login_customer_id: process.env.GOOGLE_ADS_MANAGER_ID,
+    refresh_token: process.env.GOOGLE_ADS_REFRESH_TOKEN,
+  });
+
+  const response = await customer.keywordPlanIdeas.generateKeywordHistoricalMetrics({
+    customer_id: process.env.GOOGLE_ADS_CUSTOMER_ID,
+    keywords,
+    geo_target_constants: [`geoTargetConstants/${locationCode}`],
+    language: 'languageConstants/1000', // English
+    keyword_plan_network: enums.KeywordPlanNetwork.GOOGLE_SEARCH,
+  });
+
+  const byKeyword = {};
+  for (const r of response.results || []) {
+    const m = r.keyword_metrics || {};
+    byKeyword[(r.text || '').toLowerCase()] = {
+      keyword: r.text,
+      volume: Number(m.avg_monthly_searches || 0),
+      competition:
+        typeof m.competition === 'number' ? COMPETITION_LABEL[m.competition] || 'UNKNOWN' : m.competition || 'UNKNOWN',
+      competitionIndex: Number(m.competition_index || 0),
+      low: micros(m.low_top_of_page_bid_micros),
+      high: micros(m.high_top_of_page_bid_micros),
+      estimated: false,
+    };
+  }
+  return byKeyword;
 }
 
 export async function POST(req) {
@@ -86,65 +111,26 @@ export async function POST(req) {
   const locationCode = LOCATION[country] || LOCATION.US;
   const tier = TIER[country] || 1;
 
-  const base = { keywords, location_code: locationCode, language_code: 'en' };
-
-  const [volRes, kdRes, intentRes] = await Promise.allSettled([
-    dfs('keywords_data/google_ads/search_volume/live', base),
-    dfs('dataforseo_labs/google/bulk_keyword_difficulty/live', base),
-    dfs('dataforseo_labs/google/search_intent/live', { keywords, language_code: 'en' }),
-  ]);
-
-  // If the primary (volume/CPC) call failed, return estimates for everything.
-  if (volRes.status !== 'fulfilled' || !volRes.value?.result) {
-    const reason =
-      volRes.status === 'rejected'
-        ? volRes.reason?.statusCode === 40100
-          ? 'DataForSEO credentials were rejected (40100). Verify DATAFORSEO_LOGIN / DATAFORSEO_PASSWORD at app.dataforseo.com/api-access.'
-          : String(volRes.reason?.message || volRes.reason)
-        : 'No result from DataForSEO.';
+  if (!hasCreds()) {
     return Response.json({
       source: 'estimated',
-      note: reason,
-      country,
-      locationCode,
-      tier,
+      note: 'Google Ads credentials are not configured — set GOOGLE_ADS_* env vars.',
+      country, locationCode, tier,
       keywords: keywords.map((k) => estimate(k, tier)),
     });
   }
 
-  // Index the live results by keyword.
-  const volMap = {};
-  for (const r of volRes.value.result || []) volMap[(r.keyword || '').toLowerCase()] = r;
-
-  const kdMap = {};
-  if (kdRes.status === 'fulfilled') {
-    const items = kdRes.value?.result?.[0]?.items || [];
-    for (const it of items) kdMap[(it.keyword || '').toLowerCase()] = it.keyword_difficulty;
+  try {
+    const byKeyword = await googleAdsMetrics(keywords, locationCode);
+    const merged = keywords.map((k) => byKeyword[k] || { ...estimate(k, tier), note: 'no Google Ads data' });
+    return Response.json({ source: 'google-ads', country, locationCode, tier, keywords: merged });
+  } catch (e) {
+    const detail = (e && (e.message || (e.errors && JSON.stringify(e.errors)))) || String(e);
+    return Response.json({
+      source: 'estimated',
+      note: 'Google Ads request failed: ' + detail,
+      country, locationCode, tier,
+      keywords: keywords.map((k) => estimate(k, tier)),
+    });
   }
-
-  const intentMap = {};
-  if (intentRes.status === 'fulfilled') {
-    const items = intentRes.value?.result?.[0]?.items || [];
-    for (const it of items) {
-      const main = it.keyword_intent?.label || it.keyword_intent?.main_intent || it.keyword_intent?.intent;
-      if (main) intentMap[(it.keyword || '').toLowerCase()] = main;
-    }
-  }
-
-  const merged = keywords.map((k) => {
-    const v = volMap[k] || {};
-    const compIdx = typeof v.competition_index === 'number' ? v.competition_index : null;
-    const difficulty = typeof kdMap[k] === 'number' ? kdMap[k] : compIdx;
-    return {
-      keyword: k,
-      search_volume: typeof v.search_volume === 'number' ? v.search_volume : 0,
-      cpc: typeof v.cpc === 'number' ? +v.cpc.toFixed(2) : 0,
-      competition_index: compIdx,
-      difficulty: typeof difficulty === 'number' ? Math.round(difficulty) : null,
-      intent: intentMap[k] || guessIntent(k),
-      estimated: false,
-    };
-  });
-
-  return Response.json({ source: 'dataforseo', country, locationCode, tier, keywords: merged });
 }

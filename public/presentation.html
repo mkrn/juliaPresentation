@@ -669,6 +669,12 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
       <div class="pg-card" id="pgDemandCard" style="display:none">
         <div class="mkt-row"><div class="k">Search demand <span class="badge" id="pgSrcBadge"></span></div></div>
         <div class="table-wrap"><table class="dtable" id="pgDemandTable"></table></div>
+        <div class="pg-row" id="pgCpcWrap" style="display:none;margin-top:.7em">
+          <div class="pg-field" style="flex:1">
+            <span class="cap">Your top-of-page CPC bid · <output id="pgCpcO" class="mono">$0.00</output> <span id="pgCpcRange" class="dim" style="font-size:.85em"></span></span>
+            <input type="range" id="pgCpcSlider" min="0" max="10" step="0.01" value="2">
+          </div>
+        </div>
       </div>
 
       <div class="pg-card">
@@ -681,7 +687,7 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
     </div>
 
   </div>
-  <p class="kicker">CAC = CPC ÷ (conversion × channel intent). LTV = price (one-time) or (price−expenses)×months with churn = 1/months. Social CPC is tier-estimated; search CPC is live from DataForSEO.</p>
+  <p class="kicker">CAC = CPC ÷ (conversion × channel intent). LTV = price (one-time) or (price−expenses)×months with churn = 1/months. Social CPC is tier-estimated; search CPC is your chosen bid within Google Ads' top-of-page low–high range.</p>
 </section>
 
 <!-- 24 · CLOSE -->
@@ -844,7 +850,7 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
   const DEFAULT_CPC=2.00; // search CPC before demand is pulled
 
   // ---- state
-  let channel='cpc', model='onetime', demand=null;
+  let channel='cpc', model='onetime', demand=null, cpcChosen=null;
 
   // ---- country picker
   const sel=$('pgCountry');
@@ -856,7 +862,7 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
   const cpcFmt=n=>'$'+(Math.round(n*100)/100).toFixed(2);
   function tier(){return TIER[sel.value]||1;}
   function currentCpc(){
-    if(channel==='cpc')return (demand&&demand.avgCpc>0)?demand.avgCpc:DEFAULT_CPC;
+    if(channel==='cpc')return (cpcChosen!=null&&cpcChosen>0)?cpcChosen:DEFAULT_CPC;
     return SOCIAL_CPC[tier()][channel];
   }
   const num=(id,d)=>{const v=parseFloat($(id).value);return isFinite(v)?v:d;};
@@ -880,7 +886,10 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
   ['pgPrice','pgMonths','pgExp'].forEach(id=>$(id).addEventListener('input',compute));
   sel.addEventListener('change',compute);
 
-  // ---- single keyword: one "Analyze" runs Gemini (audience) + DataForSEO (demand)
+  // ---- CPC bid slider (between Google Ads low/high top-of-page bid)
+  $('pgCpcSlider').addEventListener('input',()=>{cpcChosen=parseFloat($('pgCpcSlider').value);$('pgCpcO').textContent=cpcFmt(cpcChosen);compute();});
+
+  // ---- single keyword: one "Analyze" runs Gemini (audience) + Google Ads (demand)
   const kwInput=$('pgKeyword');
 
   async function analyzeAudience(keyword){
@@ -900,24 +909,34 @@ select,.pg-num{background:var(--panel-2);border:1px solid var(--line);border-rad
   }
 
   async function pullDemand(keyword){
-    const st=$('pgDemandStatus');st.className='pg-status';st.innerHTML='<span class="spin"></span>Pulling search stats…';
+    const st=$('pgDemandStatus');st.className='pg-status';st.innerHTML='<span class="spin"></span>Pulling Google Ads metrics…';
     try{
       const r=await fetch('/api/keywords',{method:'POST',headers:{'Content-Type':'application/json'},
         body:JSON.stringify({keywords:[keyword],country:sel.value})});
       const d=await r.json();
       if(!r.ok)throw new Error(d.detail||d.error||'request failed');
       const k0=(d.keywords||[])[0]||{};
-      demand={ avgCpc:k0.cpc||0, volume:k0.search_volume||0,
-        difficulty:(typeof k0.difficulty==='number'?k0.difficulty:null), intent:k0.intent||'—', source:d.source };
-      let html='<tr><th>Keyword</th><th>Vol/mo</th><th>KD</th><th>CPC</th><th>Intent</th></tr>';
-      html+='<tr><td>'+(k0.keyword||keyword)+'</td><td class="num">'+(k0.search_volume||0).toLocaleString()
-        +'</td><td class="num">'+(k0.difficulty==null?'—':k0.difficulty)+'</td><td class="num">'+cpcFmt(k0.cpc||0)
-        +'</td><td>'+(k0.intent||'—')+'</td></tr>';
+      // resolve a usable low–high CPC range
+      let lo=(typeof k0.low==='number'&&k0.low>0)?k0.low:0.5;
+      let hi=(typeof k0.high==='number'&&k0.high>lo)?k0.high:Math.max(lo*3,5);
+      const mid=(lo+hi)/2;
+      demand={ volume:k0.volume||0, competition:k0.competition||'—', low:lo, high:hi, source:d.source };
+      // table
+      let html='<tr><th>Keyword</th><th>Vol/mo</th><th>Competition</th><th>Top-of-page bid</th></tr>';
+      html+='<tr><td>'+(k0.keyword||keyword)+'</td><td class="num">'+(demand.volume).toLocaleString()
+        +'</td><td>'+demand.competition+'</td><td class="num">'+cpcFmt(lo)+'–'+cpcFmt(hi)+'</td></tr>';
       $('pgDemandTable').innerHTML=html;
+      // CPC slider — default to the middle of the range
+      const sld=$('pgCpcSlider');
+      sld.min=lo.toFixed(2);sld.max=hi.toFixed(2);sld.step=Math.max((hi-lo)/100,0.01).toFixed(3);sld.value=mid.toFixed(2);
+      cpcChosen=mid;$('pgCpcO').textContent=cpcFmt(mid);
+      $('pgCpcRange').textContent='(Google Ads range '+cpcFmt(lo)+'–'+cpcFmt(hi)+')';
+      $('pgCpcWrap').style.display='';
       const badge=$('pgSrcBadge');
-      if(d.source==='dataforseo'){badge.textContent='LIVE · DataForSEO';badge.className='badge live';st.className='pg-status';st.textContent='Vol '+demand.volume.toLocaleString()+'/mo · CPC '+cpcFmt(demand.avgCpc)+' · intent '+demand.intent;}
-      else{badge.textContent='ESTIMATED';badge.className='badge est';st.className='pg-status';st.textContent='Estimated (DataForSEO unavailable): '+(d.note||'');}
+      if(d.source==='google-ads'){badge.textContent='LIVE · Google Ads';badge.className='badge live';st.className='pg-status';st.textContent='Vol '+demand.volume.toLocaleString()+'/mo · competition '+demand.competition+' · bid '+cpcFmt(lo)+'–'+cpcFmt(hi);}
+      else{badge.textContent='ESTIMATED';badge.className='badge est';st.className='pg-status';st.textContent='Estimated (Google Ads unavailable): '+(d.note||'');}
       $('pgDemandCard').style.display='';
+      compute();
     }catch(e){$('pgDemandStatus').className='pg-status err';$('pgDemandStatus').textContent='Demand error: '+(e.message||e);}
   }
 

@@ -12,6 +12,9 @@
 # original source deck (the served copy lives in /public/presentation.html)
 /will-the-math-math.html
 
+# Google Ads credentials kit (contains live OAuth secrets — never commit)
+/google-ads-api-kit/
+
 # misc
 .DS_Store
 *.pem
